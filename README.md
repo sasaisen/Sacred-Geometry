@@ -28,7 +28,7 @@ parameters are the roll string (12345678) or expression (Xd6), and the modified 
 The discord bot version requires slightly more setup. 
 * [Follow this link](https://discord.com/developers/applications) to create a discord application.
 * Under the 'Bot' tab, generate a bot token.
-* Create the file resource/discord/botToken.txt and copy the token into the file.
+* Create the file resources/discord/botToken.txt and copy the token into the file.
 * Package using the manifest in resources/discord.
 * Running the jar will generate an invite link to add the bot to your server.
 
