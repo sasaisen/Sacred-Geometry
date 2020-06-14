@@ -1,5 +1,11 @@
 package sg.common;
 
+import static sg.common.Operator.ADD_SUB;
+import static sg.common.Operator.DIV;
+import static sg.common.Operator.MULT_DIV;
+import static sg.common.Operator.OPS;
+import static sg.common.Operator.SUB;
+
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMultiset;
@@ -101,11 +107,11 @@ public final class SacredGeometryUtil {
   }
 
   static TreeNode<Character> buildTree(String postfix) {
-    Character value = postfix.charAt(postfix.length() - 1);
+    char value = postfix.charAt(postfix.length() - 1);
     TreeNode<Character> left = null;
     TreeNode<Character> right = null;
 
-    if (Operators.OPS.contains(value)) {
+    if (OPS.contains(Operator.fromCharacter(value))) {
       right = buildTree(postfix.substring(0, postfix.length() - 1));
       left = buildTree(postfix.substring(0, postfix.length() - 1 - right.size()));
     }
@@ -115,22 +121,26 @@ public final class SacredGeometryUtil {
   static StringBuilder buildInOrder(TreeNode<Character> root) {
     StringBuilder stringBuilder = new StringBuilder();
 
+    Operator value = Operator.fromCharacter(root.value());
+    Operator left = root.left() != null ? Operator.fromCharacter(root.left().value()) : null;
+    Operator right = root.right() != null ? Operator.fromCharacter(root.right().value()) : null;
+
     if (root.left() != null) {
-      boolean parentheses = Operators.MULT_DIV.contains(root.value()) && Operators.ADD_SUB.contains(root.left().value());
+      boolean parentheses = MULT_DIV.contains(value) && ADD_SUB.contains(left);
       stringBuilder
           .append(parentheses ? "(" : "")
           .append(buildInOrder(root.left()))
           .append(parentheses ? ")" : "");
     }
 
-    boolean space = Operators.OPS.contains(root.value());
+    boolean space = (value != null);
     stringBuilder.append(space ? " " : "").append(root.value()).append(space ? " " : "");
 
     if (root.right() != null) {
       boolean parentheses =
-          (Operators.MULT_DIV.contains(root.value()) && Operators.ADD_SUB.contains(root.right().value()))
-              || (root.value() == Operators.DIV && root.right().value() == Operators.MULT)
-              || (root.value() == Operators.SUB && root.right().value() == Operators.ADD);
+          (MULT_DIV.contains(value) && ADD_SUB.contains(right))
+              || (value == DIV && MULT_DIV.contains(right))
+              || (value == SUB && ADD_SUB.contains(right));
       stringBuilder
           .append(parentheses ? "(" : "")
           .append(buildInOrder(root.right()))

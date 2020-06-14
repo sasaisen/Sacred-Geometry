@@ -19,21 +19,19 @@ public abstract class PostfixExpression {
     return exp;
   }
 
-  public static PostfixExpression create(PostfixExpression exp1, PostfixExpression exp2, char op) {
-    PostfixExpression exp = new AutoValue_PostfixExpression(exp1.expressionString() + exp2.expressionString() + op);
+  public static PostfixExpression create(PostfixExpression exp1, PostfixExpression exp2, Operator op) {
+    PostfixExpression exp = new AutoValue_PostfixExpression(exp1.expressionString() + exp2.expressionString() + op.character());
     exp.expressionResult = switch (op) {
-      case Operators.ADD -> exp1.expressionResult + exp2.expressionResult;
-      case Operators.SUB -> exp1.expressionResult - exp2.expressionResult;
-      case Operators.MULT -> exp1.expressionResult * exp2.expressionResult;
-      case Operators.DIV -> {
+      case ADD -> exp1.expressionResult + exp2.expressionResult;
+      case SUB -> exp1.expressionResult - exp2.expressionResult;
+      case MULT -> exp1.expressionResult * exp2.expressionResult;
+      case DIV -> {
         if (exp2.expressionResult == 0 || exp1.expressionResult % exp2.expressionResult != 0) {
           throw new IllegalStateException(
               String.format("%s divided by %s does not result in an integer", exp1, exp2));
         }
         yield exp1.expressionResult / exp2.expressionResult;
       }
-
-      default -> throw new IllegalArgumentException(op + " is not a valid operator");
     };
     return exp;
   }
@@ -46,18 +44,18 @@ public abstract class PostfixExpression {
         default -> {
           Long op2 = stack.pop();
           Long op1 = stack.pop();
-          switch (c) {
-            case Operators.ADD -> stack.push(op1 + op2);
-            case Operators.SUB -> stack.push(op1 - op2);
-            case Operators.MULT -> stack.push(op1 * op2);
-            case Operators.DIV -> {
+          switch (Operator.fromCharacter(c)) {
+            case ADD -> stack.push(op1 + op2);
+            case SUB -> stack.push(op1 - op2);
+            case MULT -> stack.push(op1 * op2);
+            case DIV -> {
               if (op2 == 0 || op1 % op2 != 0) {
                 throw new IllegalStateException(
                     String.format("%s divided by %s does not result in an integer", op1, op2));
               }
               stack.push(op1 / op2);
             }
-            default -> throw new IllegalArgumentException(
+            default -> throw new IllegalStateException(
                 c + " is not a valid dice roll or operator");
           }
         }
@@ -65,7 +63,7 @@ public abstract class PostfixExpression {
     }
     Long result = stack.pop();
     if (!stack.empty()) {
-      throw new IllegalArgumentException(expression + " is not a complete postfix expression");
+      throw new IllegalStateException(expression + " is not a complete postfix expression");
     }
     return result;
   }

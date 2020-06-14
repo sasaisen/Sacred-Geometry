@@ -2,5 +2,5 @@
 .idea/
 out/
 src/main/resources/discord/botToken.txt
-src/test/java/sg/common/Benchmark.java
+src/test/
 target/
