@@ -13,6 +13,7 @@ public enum Operator {
 
   public static final Set<Operator> OPS = ImmutableSet.of(ADD, DIV, MULT, SUB);
   public static final Set<Operator> ADD_SUB = ImmutableSet.of(ADD, SUB);
+  public static final Set<Operator> ADD_SUB_MULT = ImmutableSet.of(ADD, SUB, MULT);
   public static final Set<Operator> MULT_DIV = ImmutableSet.of(MULT, DIV);
 
   private final char character;
