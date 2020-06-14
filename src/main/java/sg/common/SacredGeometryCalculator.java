@@ -1,13 +1,7 @@
 package sg.common;
 
-import static sg.common.Operator.ADD_SUB;
-import static sg.common.Operator.DIV;
-import static sg.common.Operator.OPS;
-import static sg.common.Operator.SUB;
-
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMultiset;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multiset.Entry;
 import java.util.HashSet;
@@ -58,9 +52,14 @@ public final class SacredGeometryCalculator {
    *     encountered. At the start of each branch, if an identical set of (evaluated) expressions is
    *     already present, we know can skip this branch entirely. This eliminates huge swathes of
    *     otherwise-repeated computation.
-   * <LI>Operations are prioritized so that target numbers are approached faster. Additionally, once
-   *     the rolls have been condensed down to two expressions, operations that can't generate
-   *     target numbers are skipped.
+   * <LI>Since target numbers are prime, only some "final" expression combinations can generate a
+   *     target number, specifically: <LIST>
+   * <LI>Odd + Even
+   * <LI>Odd - Even
+   * <LI>Even - Odd
+   * <LI>Odd / Odd
+   * <LI>Even / Even </LIST>These operations are given precedence over the rest, so that a target
+   *     number will be found "sooner" in a branch.
    * <LI>Intermediate expressions that don't evaluate to an integer are disregarded (i.e.
    *     multiplication is required before division), which is greatly simplifying in that only
    *     integer handling is required. This is the only optimization that could harm accuracy, as it
@@ -83,6 +82,8 @@ public final class SacredGeometryCalculator {
       Multiset<PostfixExpression> odds,
       Multiset<PostfixExpression> evens,
       Set<Long> targetSet) {
+    Set<Long> iSet;
+    Set<Long> jSet;
     String result;
 
     // No point evaluating this set if we've already encountered a similar set; we know it'll fail.
@@ -96,132 +97,70 @@ public final class SacredGeometryCalculator {
     }
     valueSets.add(currentValueSet);
 
-    switch (odds.size()) {
-      case 0 -> {
-        switch (evens.size()) {
-          case 0, 1 -> {
-            // No results
-            return "";
-          }
-          case 2 -> {
-            // E / E
-            result = permuteEvensEvens(valueSets, odds, evens, targetSet, ImmutableSet.of(DIV));
-            if (!Strings.isNullOrEmpty(result)) {
-              return result;
-            }
-          }
-          default -> {
-            // E * E, E + E, E - E, E / E
-            result = permuteEvensEvens(valueSets, odds, evens, targetSet, OPS);
-            if (!Strings.isNullOrEmpty(result)) {
-              return result;
-            }
-          }
-        }
+    // We've condensed down to one expression; if it's odd it may be a solution.
+    if (odds.size() + evens.size() <= 1) {
+      for (PostfixExpression expression : odds) {
+        return targetSet.contains(expression.expressionResult())
+            ? expression.expressionString()
+            : "";
       }
-      case 1 -> {
-        switch (evens.size()) {
-          case 0 -> {
-            // Might be a target number
-            for (PostfixExpression expression : odds) {
-              if (targetSet.contains(expression.expressionResult())) {
-                return expression.expressionString();
-              }
-            }
-            return "";
-          }
-          case 1 -> {
-            // O + E, O - E, E - O
-            result = permuteOddsEvens(valueSets, odds, evens, targetSet, ADD_SUB);
-            if (!Strings.isNullOrEmpty(result)) {
-              return result;
-            }
-          }
-          default -> {
-            // O * E, O + E, O - E, E - O, E / O
-            result = permuteOddsEvens(valueSets, odds, evens, targetSet, OPS);
-            if (!Strings.isNullOrEmpty(result)) {
-              return result;
-            }
+      return "";
+    }
 
-            // E * E, E + E, E - E, E / E
-            result = permuteEvensEvens(valueSets, odds, evens, targetSet, OPS);
-            if (!Strings.isNullOrEmpty(result)) {
-              return result;
-            }
-          }
-        }
-      }
-      case 2 -> {
-        if (evens.size() == 0) {
-          // O / O
-          result = permuteOddsOdds(valueSets, odds, evens, targetSet, ImmutableSet.of(DIV));
-          if (!Strings.isNullOrEmpty(result)) {
-            return result;
-          }
-        } else {
-          // O * E, O + E, O - E, E - O, E / O
-          result = permuteOddsEvens(valueSets, odds, evens, targetSet, OPS);
-          if (!Strings.isNullOrEmpty(result)) {
-            return result;
-          }
+    // Combine two expressions from either set and recurse
+    // O -> odd, E -> even
+    // Blocks are split so that operations which can generate a target number are evaluated first
+    // (Specifically, additions/subtractions/divisions that produce an odd result)
 
-          // O * O, O + O, O - O, O / O
-          result = permuteOddsOdds(valueSets, odds, evens, targetSet, OPS);
-          if (!Strings.isNullOrEmpty(result)) {
-            return result;
-          }
-
-          // E * E, E + E, E - E, E / E
-          result = permuteEvensEvens(valueSets, odds, evens, targetSet, OPS);
-          if (!Strings.isNullOrEmpty(result)) {
-            return result;
-          }
-        }
-      }
-      default -> {
-            // O * E, O + E, O - E, E - O, E / O
-            result = permuteOddsEvens(valueSets, odds, evens, targetSet, OPS);
-            if (!Strings.isNullOrEmpty(result)) {
-              return result;
-            }
-
-            // O * O, O + O, O - O, O / O
-            result = permuteOddsOdds(valueSets, odds, evens, targetSet, OPS);
-            if (!Strings.isNullOrEmpty(result)) {
-              return result;
-            }
-
-            // E * E, E + E, E - E, E / E
-            result = permuteEvensEvens(valueSets, odds, evens, targetSet, OPS);
-            if (!Strings.isNullOrEmpty(result)) {
-              return result;
-            }
-        }
-      }
-
-    return "";
-  }
-
-  static String permuteOddsOdds(
-      Set<Multiset<Long>> valueSets,
-      Multiset<PostfixExpression> odds,
-      Multiset<PostfixExpression> evens,
-      Set<Long> targetSet,
-      Set<Operator> operators) {
-    Set<Long> iSet;
-    Set<Long> jSet;
-    Multiset<PostfixExpression> newOdds;
-    Multiset<PostfixExpression> newEvens;
-    String result;
-
+    // The following ops may generate a target number
+    // O x E or E x O
     iSet = new HashSet<>();
     for (PostfixExpression exp1 : odds.elementSet()) {
       if (iSet.contains(exp1.expressionResult())) {
         continue;
       }
       iSet.add(exp1.expressionResult());
+      jSet = new HashSet<>();
+      for (PostfixExpression exp2 : evens.elementSet()) {
+        if (jSet.contains(exp2.expressionResult())) {
+          continue;
+        }
+        jSet.add(exp2.expressionResult());
 
+        // O + E => O, equivalently E + O => O
+        // O - E => O
+        for (Operator operator : Operator.ADD_SUB) {
+          result =
+              calculateHelper(
+                  valueSets,
+                  newSet(PostfixExpression.create(exp1, exp2, operator), odds, exp1),
+                  newSet(evens, exp2),
+                  targetSet);
+          if (!Strings.isNullOrEmpty(result)) {
+            return result;
+          }
+        }
+
+        // E - O => O
+        result =
+            calculateHelper(
+                valueSets,
+                newSet(PostfixExpression.create(exp2, exp1, Operator.SUB), odds, exp1),
+                newSet(evens, exp2),
+                targetSet);
+        if (!Strings.isNullOrEmpty(result)) {
+          return result;
+        }
+      }
+    }
+
+    // O x O
+    iSet = new HashSet<>();
+    for (PostfixExpression exp1 : odds.elementSet()) {
+      if (iSet.contains(exp1.expressionResult())) {
+        continue;
+      }
+      iSet.add(exp1.expressionResult());
       jSet = new HashSet<>();
       for (PostfixExpression exp2 : odds.elementSet()) {
         if (exp1 == exp2 && odds.count(exp1) == 1) {
@@ -232,130 +171,30 @@ public final class SacredGeometryCalculator {
         }
         jSet.add(exp2.expressionResult());
 
-        for (Operator op : operators) {
-          switch (op) {
-            case MULT -> {
-              // O * O
-              newOdds = newSet(PostfixExpression.create(exp1, exp2, op), odds, exp1, exp2);
-              newEvens = evens;
-            }
-            case ADD, SUB -> {
-              // O + O, O - O
-              newOdds = newSet(odds, exp1, exp2);
-              newEvens = newSet(PostfixExpression.create(exp1, exp2, op), evens);
-            }
-            case DIV -> {
-              // O / O
-              if (exp2.expressionResult() == 0
-                  || exp1.expressionResult() % exp2.expressionResult() != 0) {
-                continue;
-              }
-              newOdds = newSet(PostfixExpression.create(exp1, exp2, op), odds, exp1, exp2);
-              newEvens = evens;
-            }
-            default -> throw new IllegalStateException(op + " is not a valid operator.");
-          }
-          result = calculateHelper(valueSets, newOdds, newEvens, targetSet);
-          if (!Strings.isNullOrEmpty(result)) {
-            return result;
-          }
-        }
-      }
-    }
-    return "";
-  }
-
-  static String permuteOddsEvens(
-      Set<Multiset<Long>> valueSets,
-      Multiset<PostfixExpression> odds,
-      Multiset<PostfixExpression> evens,
-      Set<Long> targetSet,
-      Set<Operator> operators) {
-    Set<Long> iSet;
-    Set<Long> jSet;
-    Multiset<PostfixExpression> newOdds;
-    Multiset<PostfixExpression> newEvens;
-    String result;
-
-    iSet = new HashSet<>();
-    for (PostfixExpression exp1 : odds.elementSet()) {
-      if (iSet.contains(exp1.expressionResult())) {
-        continue;
-      }
-      iSet.add(exp1.expressionResult());
-
-      jSet = new HashSet<>();
-      for (PostfixExpression exp2 : evens.elementSet()) {
-        if (jSet.contains(exp2.expressionResult())) {
+        // O / O => O, skip if not an integer
+        if (exp2.expressionResult() == 0
+            || exp1.expressionResult() % exp2.expressionResult() != 0) {
           continue;
         }
-        jSet.add(exp2.expressionResult());
-
-        for (Operator op : operators) {
-          switch (op) {
-            case MULT -> {
-              // O * E, E * O
-              newOdds = newSet(odds, exp1);
-              newEvens = newSet(PostfixExpression.create(exp1, exp2, op), evens, exp2);
-            }
-            case ADD, SUB -> {
-              // O + E, E + O, O - E
-              newOdds = newSet(PostfixExpression.create(exp1, exp2, op), odds, exp1);
-              newEvens = newSet(evens, exp2);
-            }
-            case DIV -> {
-              // E / O; O / E will never produce an integer.
-              if (exp1.expressionResult() == 0
-                  || exp2.expressionResult() % exp1.expressionResult() != 0) {
-                continue;
-              }
-              newOdds = newSet(odds, exp1);
-              newEvens = newSet(PostfixExpression.create(exp2, exp1, op), evens, exp2);
-              }
-            default -> throw new IllegalStateException(op + " is not a valid operator.");
-          }
-          result = calculateHelper(valueSets, newOdds, newEvens, targetSet);
-          if (!Strings.isNullOrEmpty(result)) {
-            return result;
-          }
-
-          // Extra case for E - O
-          if (op == SUB) {
-            result =
-                calculateHelper(
-                    valueSets,
-                    newSet(PostfixExpression.create(exp2, exp1, op), odds, exp1),
-                    newSet(evens, exp2),
-                    targetSet);
-          if (!Strings.isNullOrEmpty(result)) {
-            return result;
-            }
-          }
+        result =
+            calculateHelper(
+                valueSets,
+                newSet(PostfixExpression.create(exp1, exp2, Operator.DIV), odds, exp1, exp2),
+                evens,
+                targetSet);
+        if (!Strings.isNullOrEmpty(result)) {
+          return result;
         }
       }
     }
-    return "";
-  }
 
-  static String permuteEvensEvens(
-      Set<Multiset<Long>> valueSets,
-      Multiset<PostfixExpression> odds,
-      Multiset<PostfixExpression> evens,
-      Set<Long> targetSet,
-      Set<Operator> operators) {
-    Set<Long> iSet;
-    Set<Long> jSet;
-    Multiset<PostfixExpression> newOdds;
-    Multiset<PostfixExpression> newEvens;
-    String result;
-
+    // E x E
     iSet = new HashSet<>();
     for (PostfixExpression exp1 : evens.elementSet()) {
       if (iSet.contains(exp1.expressionResult())) {
         continue;
       }
       iSet.add(exp1.expressionResult());
-
       jSet = new HashSet<>();
       for (PostfixExpression exp2 : evens.elementSet()) {
         if (exp1 == exp2 && evens.count(exp1) == 1) {
@@ -366,36 +205,150 @@ public final class SacredGeometryCalculator {
         }
         jSet.add(exp2.expressionResult());
 
-        for (Operator op : operators) {
-          switch (op) {
-            case MULT, ADD, SUB -> {
-              // E * E, E + E, E - E
-              newOdds = odds;
-              newEvens = newSet(PostfixExpression.create(exp1, exp2, op), evens, exp1, exp2);
-            }
-            case DIV -> {
-              // E / E
-              if (exp2.expressionResult() == 0
-                  || exp1.expressionResult() % exp2.expressionResult() != 0) {
-                continue;
-              }
-              if (exp1.expressionResult() % 4 == 0) {
-                newOdds = odds;
-                newEvens = newSet(PostfixExpression.create(exp1, exp2, op), evens, exp1, exp2);
-              } else {
-                newOdds = newSet(PostfixExpression.create(exp1, exp2, op), odds);
-                newEvens = newSet(evens, exp1, exp2);
-              }
-            }
-            default -> throw new IllegalStateException(op + " is not a valid operator.");
-          }
-          result = calculateHelper(valueSets, newOdds, newEvens, targetSet);
+        // E / E => O or E, skip if not an integer
+        if (exp2.expressionResult() == 0
+            || exp1.expressionResult() % exp2.expressionResult() != 0) {
+          continue;
+        }
+        if (exp1.expressionResult() % 4 == 0) {
+          result =
+              calculateHelper(
+                  valueSets,
+                  odds,
+                  newSet(PostfixExpression.create(exp1, exp2, Operator.DIV), evens, exp1, exp2),
+                  targetSet);
+        } else {
+          result =
+              calculateHelper(
+                  valueSets,
+                  newSet(PostfixExpression.create(exp1, exp2, Operator.DIV), odds),
+                  newSet(evens, exp1, exp2),
+                  targetSet);
+        }
+        if (!Strings.isNullOrEmpty(result)) {
+          return result;
+        }
+      }
+    }
+
+    // The remaining ops will never generate a target number
+    // If only two expressions remain, these operations can be skipped
+    if (odds.size() + evens.size() <= 2) {
+      return "";
+    }
+
+    // O x E or E x O
+    iSet = new HashSet<>();
+    for (PostfixExpression exp1 : odds.elementSet()) {
+      if (iSet.contains(exp1.expressionResult())) {
+        continue;
+      }
+      iSet.add(exp1.expressionResult());
+      jSet = new HashSet<>();
+      for (PostfixExpression exp2 : evens.elementSet()) {
+        if (jSet.contains(exp2.expressionResult())) {
+          continue;
+        }
+        jSet.add(exp2.expressionResult());
+
+        // O * E => E, equivalently E * O => E
+        result =
+            calculateHelper(
+                valueSets,
+                newSet(odds, exp1),
+                newSet(PostfixExpression.create(exp1, exp2, Operator.MULT), evens, exp2),
+                targetSet);
+        if (!Strings.isNullOrEmpty(result)) {
+          return result;
+        }
+
+        // E / O => E, skip if not an integer
+        if (exp1.expressionResult() == 0
+            || exp2.expressionResult() % exp1.expressionResult() != 0) {
+          continue;
+        }
+        result =
+            calculateHelper(
+                valueSets,
+                newSet(odds, exp1),
+                newSet(PostfixExpression.create(exp2, exp1, Operator.DIV), evens, exp2),
+                targetSet);
+        if (!Strings.isNullOrEmpty(result)) {
+          return result;
+        }
+
+        // O / E  will never produce an integer, skip entirely
+      }
+    }
+
+    // O x O
+    iSet = new HashSet<>();
+    for (PostfixExpression exp1 : odds.elementSet()) {
+      if (iSet.contains(exp1.expressionResult())) {
+        continue;
+      }
+      iSet.add(exp1.expressionResult());
+      jSet = new HashSet<>();
+      for (PostfixExpression exp2 : odds.elementSet()) {
+        if (exp1 == exp2 && odds.count(exp1) == 1) {
+          continue; // Don't operate an expression against itself, unless present more than once
+        }
+        if (jSet.contains(exp2.expressionResult())) {
+          continue;
+        }
+        jSet.add(exp2.expressionResult());
+
+        // O + O => E
+        // O - O => E
+        // O * O => O
+        for (Operator operator : Operator.ADD_SUB_MULT) {
+          result =
+              calculateHelper(
+                  valueSets,
+                  newSet(odds, exp1, exp2),
+                  newSet(PostfixExpression.create(exp1, exp2, operator), evens),
+                  targetSet);
           if (!Strings.isNullOrEmpty(result)) {
             return result;
           }
         }
       }
     }
+
+    // E x E
+    iSet = new HashSet<>();
+    for (PostfixExpression exp1 : evens.elementSet()) {
+      if (iSet.contains(exp1.expressionResult())) {
+        continue;
+      }
+      iSet.add(exp1.expressionResult());
+      jSet = new HashSet<>();
+      for (PostfixExpression exp2 : evens.elementSet()) {
+        if (exp1 == exp2 && evens.count(exp1) == 1) {
+          continue; // Don't operate an expression against itself, unless present more than once
+        }
+        if (jSet.contains(exp2.expressionResult())) {
+          continue;
+        }
+        jSet.add(exp2.expressionResult());
+
+        // E + E => E
+        // E - E => E
+        // E * E => E
+        for (Operator operator : Operator.ADD_SUB_MULT) {
+          result =
+              calculateHelper(
+                  valueSets,
+                  odds,
+                  newSet(PostfixExpression.create(exp1, exp2, operator), evens, exp1, exp2),
+                  targetSet);
+          if (!Strings.isNullOrEmpty(result)) {
+            return result;
+          }
+        }
+      }
+    }
+
     return "";
   }
 
