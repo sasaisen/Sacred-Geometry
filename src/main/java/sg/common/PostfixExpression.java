@@ -19,7 +19,7 @@ public abstract class PostfixExpression {
     return exp;
   }
 
-  public static PostfixExpression create(PostfixExpression exp1, PostfixExpression exp2, Operator op) {
+  public static PostfixExpression create(PostfixExpression exp1, PostfixExpression exp2, Operators op) {
     PostfixExpression exp = new AutoValue_PostfixExpression(exp1.expressionString() + exp2.expressionString() + op.character());
     exp.expressionResult = switch (op) {
       case ADD -> exp1.expressionResult + exp2.expressionResult;
@@ -40,25 +40,30 @@ public abstract class PostfixExpression {
     Stack<Long> stack = new Stack<>();
     for (char c : expression.toCharArray()) {
       switch (c) {
-        case '1', '2', '3', '4', '5', '6', '7', '8' -> stack.push((long) c - '0');
+        case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' -> stack.push((long) c - '0');
         default -> {
-          Long op2 = stack.pop();
-          Long op1 = stack.pop();
-          switch (Operator.fromCharacter(c)) {
-            case ADD -> stack.push(op1 + op2);
-            case SUB -> stack.push(op1 - op2);
-            case MULT -> stack.push(op1 * op2);
-            case DIV -> {
-              if (op2 == 0 || op1 % op2 != 0) {
-                throw new IllegalStateException(
-                    String.format("%s divided by %s does not result in an integer", op1, op2));
+          Operators operator = Operators.fromCharacter(c);
+          if (operator != null) {
+            Long operand2 = stack.pop();
+            Long operand1 = stack.pop();
+            switch (Operators.fromCharacter(c)) {
+              case ADD -> stack.push(operand1 + operand2);
+              case SUB -> stack.push(operand1 - operand2);
+              case MULT -> stack.push(operand1 * operand2);
+              case DIV -> {
+                if (operand2 == 0 || operand1 % operand2 != 0) {
+                  throw new IllegalStateException(
+                      String.format("%s divided by %s does not result in an integer", operand1, operand2));
+                }
+                stack.push(operand1 / operand2);
               }
-              stack.push(op1 / op2);
             }
-            default -> throw new IllegalStateException(
-                c + " is not a valid dice roll or operator");
+          }
+          else {
+            throw new IllegalStateException(c + " is not a valid dice roll or operator");
           }
         }
+
       }
     }
     Long result = stack.pop();

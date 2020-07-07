@@ -6,7 +6,7 @@ import com.google.common.io.CharStreams;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import sg.common.SacredGeometryUtil;
+import sg.common.SacredGeometry;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,7 +47,7 @@ public class SacredGeometryDiscord {
                   .splitToList(sgCommandMatcher.group(1));
 
           try {
-            SacredGeometryUtil.sacredGeometry(commandArguments, message::append);
+            SacredGeometry.sacredGeometry(commandArguments, message::append);
           } catch (IllegalArgumentException e) {
             message.append(e.getMessage());
           }
