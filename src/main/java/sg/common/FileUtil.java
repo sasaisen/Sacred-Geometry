@@ -2,6 +2,7 @@ package sg.common;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultiset;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multiset.Entry;
 import java.io.FileInputStream;
@@ -10,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Map;
+import java.util.Set;
 
 public class FileUtil {
   static final String RESOURCE_PATH = "src/main/resources/";
@@ -24,6 +26,8 @@ public class FileUtil {
   static final String SG_7 = "sg7";
   static final String SG_8 = "sg8";
   static final String SG_9 = "sg9";
+
+  static final String FAILED = "f";
 
   static byte[] rollSetToBytes(Multiset<Integer> rollSet) {
     for (Entry<Integer> roll : rollSet.entrySet()) {
@@ -117,7 +121,7 @@ public class FileUtil {
     return PostfixExpression.create(builder.toString());
   }
 
-  static void writeFile(String filename, Map<Multiset<Integer>, PostfixExpression> map) throws IOException {
+  static void writeSolutionFile(String filename, Map<Multiset<Integer>, PostfixExpression> map) throws IOException {
     try (OutputStream out = new FileOutputStream(RESOURCE_PATH + filename)) {
       for (Map.Entry<Multiset<Integer>, PostfixExpression> entry : map.entrySet()) {
         byte[] rollSetBytes = rollSetToBytes(entry.getKey());
@@ -129,7 +133,7 @@ public class FileUtil {
     }
   }
 
-  static Map<Multiset<Integer>, PostfixExpression> readFile(String filename) throws IOException {
+  static Map<Multiset<Integer>, PostfixExpression> readSolutionFile(String filename) throws IOException {
     try (InputStream in = new FileInputStream(RESOURCE_PATH + filename)) {
       ImmutableMap.Builder<Multiset<Integer>, PostfixExpression> map = ImmutableMap.builder();
 
@@ -149,6 +153,32 @@ public class FileUtil {
         map.put(rollSet, expression);
       }
       return map.build();
+    }
+  }
+
+  static void writeFailureFile(String filename, Set<Multiset<Integer>> set) throws IOException {
+    try (OutputStream out = new FileOutputStream(RESOURCE_PATH + filename + FAILED)) {
+      for (Multiset<Integer> entry : set) {
+        byte[] rollSetBytes = rollSetToBytes(entry);
+        out.write(rollSetBytes);
+      }
+    }
+  }
+
+  static Set<Multiset<Integer>> readFailureFile(String filename) throws IOException {
+    try (InputStream in = new FileInputStream(RESOURCE_PATH + filename + FAILED)) {
+      ImmutableSet.Builder<Multiset<Integer>> set = ImmutableSet.builder();
+
+      while (in.available() > 0) {
+        byte[] rollSetBytes = new byte[4];
+        if (in.read(rollSetBytes) != 4) {
+          throw new IllegalStateException();
+        }
+        Multiset<Integer> rollSet = bytesToRollSet(rollSetBytes);
+
+        set.add(rollSet);
+      }
+      return set.build();
     }
   }
 

@@ -7,6 +7,7 @@ import static sg.common.SetUtil.newSet;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultiset;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
 import java.io.IOException;
 import java.util.HashSet;
@@ -15,32 +16,42 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public final class SacredGeometryCalculator {
-  private static final Map<Targets, Map<Multiset<Integer>, PostfixExpression>> sgExpressionSets;
+  private static final Map<Targets, Map<Multiset<Integer>, PostfixExpression>> SOLUTION_SETS;
+  private static final Map<Targets, Set<Multiset<Integer>>> FAILURE_SETS;
 
   static {
-    try {
-      sgExpressionSets =
-          ImmutableMap.<Targets, Map<Multiset<Integer>, PostfixExpression>>builder()
-              .put(Targets.ZERO, FileUtil.readFile(FileUtil.SG_0))
-              .put(Targets.ONE, FileUtil.readFile(FileUtil.SG_1))
-              .put(Targets.TWO, FileUtil.readFile(FileUtil.SG_2))
-              .put(Targets.THREE, FileUtil.readFile(FileUtil.SG_3))
-              .put(Targets.FOUR, FileUtil.readFile(FileUtil.SG_4))
-              .put(Targets.FIVE, FileUtil.readFile(FileUtil.SG_5))
-              .put(Targets.SIX, FileUtil.readFile(FileUtil.SG_6))
-              .put(Targets.SEVEN, FileUtil.readFile(FileUtil.SG_7))
-              .put(Targets.EIGHT, FileUtil.readFile(FileUtil.SG_8))
-              .put(Targets.NINE, FileUtil.readFile(FileUtil.SG_9))
-              .build();
-    } catch (IOException e) {
-      throw new ExceptionInInitializerError(e);
+    ImmutableMap.Builder<Targets, Map<Multiset<Integer>, PostfixExpression>> solutionBuilder =
+        ImmutableMap.builder();
+    ImmutableMap.Builder<Targets, Set<Multiset<Integer>>> failureBuilder = ImmutableMap.builder();
+
+    for (Targets t : Targets.values()) {
+      Map<Multiset<Integer>, PostfixExpression> solutionSet;
+      try {
+        solutionSet = FileUtil.readSolutionFile(t.fileName());
+      } catch (IOException e) {
+        solutionSet = ImmutableMap.of();
+      }
+      solutionBuilder.put(t, solutionSet);
+
+      Set<Multiset<Integer>> failureSet;
+      try {
+        failureSet = FileUtil.readFailureFile(t.fileName());
+      } catch (IOException e) {
+        failureSet = ImmutableSet.of();
+      }
+      failureBuilder.put(t, failureSet);
     }
+
+    SOLUTION_SETS = solutionBuilder.build();
+    FAILURE_SETS = failureBuilder.build();
   }
 
   public static String calculate(Multiset<Integer> rollSet, Targets target) {
-    Map<Multiset<Integer>, PostfixExpression> sgExpressionSet = sgExpressionSets.get(target);
+    if (FAILURE_SETS.get(target).contains(rollSet)) {
+      return "";
+    }
 
-    for (Entry<Multiset<Integer>, PostfixExpression> e : sgExpressionSet.entrySet()) {
+    for (Entry<Multiset<Integer>, PostfixExpression> e : SOLUTION_SETS.get(target).entrySet()) {
       if (!isSupersetOf(rollSet, e.getKey())) {
         continue;
       }
@@ -50,9 +61,12 @@ public final class SacredGeometryCalculator {
       }
 
       Multiset<Integer> remainderSet = difference(rollSet, e.getKey());
+      if (FAILURE_SETS.get(Targets.ZERO).contains(remainderSet)) {
+        continue;
+      }
 
       for (Entry<Multiset<Integer>, PostfixExpression> z :
-          sgExpressionSets.get(Targets.ZERO).entrySet()) {
+          SOLUTION_SETS.get(Targets.ZERO).entrySet()) {
         if (!isSupersetOf(remainderSet, z.getKey())) {
           continue;
         }
@@ -66,17 +80,17 @@ public final class SacredGeometryCalculator {
       }
     }
 
-    return calculateWithoutLookup(rollSet, target.targetValues());
+    return calculateWithoutLookup(rollSet, target);
   }
 
-  static String calculateWithoutLookup(Multiset<Integer> rollSet, Set<Long> targetSet) {
+  static String calculateWithoutLookup(Multiset<Integer> rollSet, Targets targets) {
     ImmutableMultiset.Builder<PostfixExpression> exps = ImmutableMultiset.builder();
 
     for (Multiset.Entry<Integer> e : rollSet.entrySet()) {
       exps.addCopies(PostfixExpression.create(e.getElement()), e.getCount());
     }
 
-    return calculateHelper(new HashSet<>(), exps.build(), targetSet);
+    return calculateHelper(new HashSet<>(), exps.build(), targets.targetValues());
   }
 
   static String calculateHelper(
